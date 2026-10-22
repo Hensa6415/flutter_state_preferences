@@ -14,13 +14,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _emailController;
-  late TextEditingController
-  _favoriteController; // Latihan 3: Controller Form Favorit[cite: 17]
+  late TextEditingController _favoriteController;
 
   @override
   void initState() {
     super.initState();
-    // Latihan 4: context.read untuk mendapatkan instance provider
     final provider = context.read<UserProvider>();
     _nameController = TextEditingController(text: provider.user.name);
     _emailController = TextEditingController(text: provider.user.email);
@@ -35,12 +33,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _saveProfile() async {
+Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       final name = _nameController.text.trim();
       final email = _emailController.text.trim();
 
-      // Latihan 5: Validasi Keamanan Karakter Berbahaya
       if (RegExp(r'[<>]').hasMatch(name)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -52,40 +49,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final prefs = await SharedPreferences.getInstance();
-      List<String> registeredEmails =
-          prefs.getStringList('registered_emails') ?? [];
+      List<String> registeredEmails = prefs.getStringList('registered_emails') ?? [];
+      
+      if (!mounted) return;
       final provider = context.read<UserProvider>();
 
-      // Latihan 5: Validasi Email Unik
-      // HANYA blokir jika user sedang LOGIN, dan mencoba ganti ke email yang sudah terdaftar
-      if (provider.user.isLoggedIn &&
-          email != provider.user.email &&
-          registeredEmails.contains(email)) {
+      bool isEmailTaken = false;
+
+      if (!provider.user.isLoggedIn) {
+        if (registeredEmails.contains(email)) {
+          isEmailTaken = true;
+        }
+      } else {
+        if (registeredEmails.contains(email) && email != provider.user.email) {
+          isEmailTaken = true;
+        }
+      }
+
+      if (isEmailTaken) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Email sudah digunakan akun lain!'),
+            content: Text('Email telah digunakan! Silakan gunakan email lain.'),
             backgroundColor: Colors.red,
           ),
         );
-        return;
+        return; 
       }
 
-      // Jika email belum pernah ada di sistem, daftarkan (Simulasi Register)
       if (!registeredEmails.contains(email)) {
         registeredEmails.add(email);
         await prefs.setStringList('registered_emails', registeredEmails);
       }
 
-      // Lanjut simpan profil (Simulasi Login / Update)
       final updatedUser = provider.user.copyWith(
         name: name,
         email: email,
         isLoggedIn: true,
       );
 
-      provider.updateUser(updatedUser);
-      if (!mounted) return;
+      await provider.updateUser(updatedUser);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profil berhasil disimpan'),
@@ -107,9 +111,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Batal'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              context.read<UserProvider>().logout(); // Latihan 4
+              await context.read<UserProvider>().logout();
+              
+              _nameController.clear();
+              _emailController.clear();
+              
+              if (!mounted) return;
               Navigator.pop(context);
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
@@ -121,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<UserProvider>(); // Pantau state terbaru
+    final provider = context.watch<UserProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -134,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: const Icon(Icons.logout),
               onPressed: _logout,
               tooltip: 'Logout',
-            ),
+            )
         ],
       ),
       body: provider.isLoading
@@ -150,11 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.deepPurple,
-                        child: Icon(
-                          Icons.person,
-                          size: 60,
-                          color: Colors.white,
-                        ),
+                        child: Icon(Icons.person, size: 60, color: Colors.white),
                       ),
                       const SizedBox(height: 24),
                       TextFormField(
@@ -165,8 +170,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           border: OutlineInputBorder(),
                         ),
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty)
+                          if (value == null || value.trim().isEmpty) {
                             return 'Nama tidak boleh kosong';
+                          }
                           return null;
                         },
                       ),
@@ -180,11 +186,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty)
+                          if (value == null || value.trim().isEmpty) {
                             return 'Email tidak boleh kosong';
-                          final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-                          if (!emailRegex.hasMatch(value.trim()))
+                          }
+                          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                          if (!emailRegex.hasMatch(value.trim())) {
                             return 'Format email tidak valid';
+                          }
                           return null;
                         },
                       ),
@@ -199,16 +207,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                       ),
-
                       const Divider(height: 48, thickness: 2),
-
-                      // Latihan 3: Daftar Favorit[cite: 17]
                       const Text(
-                        'Daftar Favorit',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        'Daftar Favorit', 
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -217,17 +219,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: TextField(
                               controller: _favoriteController,
                               decoration: const InputDecoration(
-                                labelText: 'Tambah Favorit',
-                                border: OutlineInputBorder(),
+                                labelText: 'Tambah Favorit', 
+                                border: OutlineInputBorder()
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () {
-                              provider.addFavorite(
-                                _favoriteController.text.trim(),
-                              );
+                              provider.addFavorite(_favoriteController.text.trim());
                               _favoriteController.clear();
                             },
                             child: const Text('Tambah'),
